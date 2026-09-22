@@ -23,6 +23,10 @@ namespace ReservationWebAPI.Controllers
         {
             return _idempotenceRecordService.Get(_databaseContext);
         }
-        
+        [HttpGet(Name = "GenerateKey")]
+        public Guid GenerateKey()
+        {
+            return Guid.NewGuid();
+        }
     }
 }
