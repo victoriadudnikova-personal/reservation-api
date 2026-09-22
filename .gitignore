@@ -1,0 +1,9 @@
+/.vs/*
+/bin/*
+/obj/*
+/ReservationWebAPI/ReservationWebAPI/obj/*
+/ReservationWebAPI/ReservationWebAPI/bin/*
+/ReservationWebAPI/.vs/*
+/DbConnection/obj/*
+/DbConnection/bin/*
+*.user
