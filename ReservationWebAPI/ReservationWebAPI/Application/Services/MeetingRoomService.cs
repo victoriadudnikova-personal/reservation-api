@@ -7,14 +7,14 @@ namespace ReservationWebAPI.Application.Services
 {
     public class MeetingRoomService
     {
-        private readonly ILogger<MeetingRoomService> _logger;
         private IdempotencyRecordService _idempotencyRecordService;
         private ReservationService _reservationService;
-        public MeetingRoomService(ILogger<MeetingRoomService> logger, IdempotencyRecordService idempotencyRecordService, ReservationService reservationService) 
+        private readonly int _idempotencyRecordExpirationInHours;
+        public MeetingRoomService(ILogger<MeetingRoomService> logger, IConfiguration configuration, IdempotencyRecordService idempotencyRecordService, ReservationService reservationService) 
         {
-            _logger = logger;
             _reservationService = reservationService;
             _idempotencyRecordService = idempotencyRecordService;
+            _idempotencyRecordExpirationInHours = configuration.GetValue<int?>("IdempotencyRecordExpirationTimeInHours") ?? 24;
         }
         public IEnumerable<MeetingRoom> Get(DatabaseContext dbContext)
         {
@@ -52,7 +52,7 @@ namespace ReservationWebAPI.Application.Services
 
                 var operationRequest = new OperationRequest()
                 {
-                    OperationType = OperationRequest.OperationTypeEnum.Book,
+                    OperationType = IdempotencyRecord.OperationTypeEnum.Book,
                     SerializedOperation = requestHash!
                 };
 
@@ -68,7 +68,7 @@ namespace ReservationWebAPI.Application.Services
                     Key = idempotencyKey,
                     RequestHash = requestHash!,
                     CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddHours(24)
+                    ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours)
                 };
 
                 operationResponse = CheckIfMeetingRoomExists(dbContext, request, newIdempotencyRecord);

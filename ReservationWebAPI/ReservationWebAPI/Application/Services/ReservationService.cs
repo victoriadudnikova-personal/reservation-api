@@ -8,10 +8,14 @@ namespace ReservationWebAPI.Application.Services
     {
         private readonly ILogger<ReservationService> _logger;
         private IdempotencyRecordService _idempotencyRecordService;
-        public ReservationService(ILogger<ReservationService> logger, IdempotencyRecordService idempotencyRecordService)
+        private readonly int _reservationExpirationInMinutes;
+        private readonly int _idempotencyRecordExpirationInHours;
+        public ReservationService(ILogger<ReservationService> logger, IConfiguration configuration, IdempotencyRecordService idempotencyRecordService)
         {
             _logger = logger;
             _idempotencyRecordService = idempotencyRecordService;
+            _reservationExpirationInMinutes = configuration.GetValue<int?>("ReservationWaitingConfirmationTimeInMinutes") ?? 3;
+            _idempotencyRecordExpirationInHours = configuration.GetValue<int?>("IdempotencyRecordExpirationTimeInHours") ?? 24;
         }
         public IEnumerable<Reservation> Get(DatabaseContext dbContext)
         {
@@ -59,7 +63,7 @@ namespace ReservationWebAPI.Application.Services
 
             var operationRequest = new OperationRequest()
             {
-                OperationType = OperationRequest.OperationTypeEnum.Confirm,
+                OperationType = IdempotencyRecord.OperationTypeEnum.Confirm,
                 SerializedOperation = requestHash!
             };
 
@@ -91,7 +95,7 @@ namespace ReservationWebAPI.Application.Services
                 Key = idempotencyKey,
                 RequestHash = requestHash,
                 CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddHours(24),
+                ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours),
                 ReservationId = id,
                 ResponseBody = $"Reservation is successfully {responseMessage}.",
                 ResponseStatusCode = StatusCodes.Status200OK
@@ -102,7 +106,7 @@ namespace ReservationWebAPI.Application.Services
             dbContext.SaveChanges();
             return new OperationResponse
             {
-                ResponseMessage = "",
+                ResponseMessage = idempotencyRecord.ResponseBody,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -125,7 +129,7 @@ namespace ReservationWebAPI.Application.Services
                 Status = Reservation.ReservationStatus.WaitingConfirmation
             };
             dbContext.Add(newReservation);
-            idempotencyRecord.ResponseBody = "You have 3 minutes to confirm or cancel the reservation. It will be cancelled automatically if no operation is executed.";
+            idempotencyRecord.ResponseBody = $"You have {_reservationExpirationInMinutes} minutes to confirm or cancel the reservation. It will be cancelled automatically if no operation is executed.";
             idempotencyRecord.ResponseStatusCode = StatusCodes.Status201Created;
             idempotencyRecord.ReservationId = newReservation.Id;
             dbContext.IdempotencyRecords.Add(idempotencyRecord);

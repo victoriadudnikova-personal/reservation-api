@@ -9,14 +9,11 @@ namespace ReservationWebAPI.Controllers
     [Route("[controller]")]
     public class IdempotencyRecordController : ControllerBase
     {
-        
-        private readonly ILogger<IdempotencyRecordController> _logger;
         private IdempotencyRecordService _idempotenceRecordService;
         private DatabaseContext _databaseContext;
 
-        public IdempotencyRecordController(ILogger<IdempotencyRecordController> logger, IdempotencyRecordService idempotencyRecordService, DatabaseContext databaseContext)
+        public IdempotencyRecordController(IdempotencyRecordService idempotencyRecordService, DatabaseContext databaseContext)
         {
-            _logger = logger;
             _databaseContext = databaseContext;
             _idempotenceRecordService = idempotencyRecordService;
         }

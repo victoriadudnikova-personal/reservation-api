@@ -17,11 +17,11 @@ namespace ReservationWebAPI.Application.Services
             if (existingIdempotencyRecord != null)
             {
                 object? savedBodyRequest = null;
-                if (request.OperationType == OperationRequest.OperationTypeEnum.Book)
+                if (request.OperationType == IdempotencyRecord.OperationTypeEnum.Book)
                 {
                     savedBodyRequest = BookMeetingRoomRequest.Deserialize(existingIdempotencyRecord.RequestHash);
                 }
-                else if (request.OperationType == OperationRequest.OperationTypeEnum.Confirm || request.OperationType == OperationRequest.OperationTypeEnum.Cancel)
+                else if (request.OperationType == IdempotencyRecord.OperationTypeEnum.Confirm || request.OperationType == IdempotencyRecord.OperationTypeEnum.Cancel)
                 {
                     savedBodyRequest = UpdateReservationStatusRequest.Deserialize(existingIdempotencyRecord.RequestHash);
                 }

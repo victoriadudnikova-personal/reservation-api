@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <Folder Include="Infrastructure\BackgroundServices\" />
-    <Folder Include="Infrastructure\Persistence\" />
   </ItemGroup>
 
   <ItemGroup>

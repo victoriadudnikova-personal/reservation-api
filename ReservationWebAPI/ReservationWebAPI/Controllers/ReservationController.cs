@@ -10,14 +10,11 @@ namespace ReservationWebAPI.Controllers
     [Route("[controller]")]
     public class ReservationController : ControllerBase
     {
-        
-        private readonly ILogger<ReservationController> _logger;
         private ReservationService _reservationService;
         private DatabaseContext _dbContext;
 
-        public ReservationController(ILogger<ReservationController> logger, ReservationService reservationService, DatabaseContext databaseContext)
+        public ReservationController(ReservationService reservationService, DatabaseContext databaseContext)
         {
-            _logger = logger;
             _reservationService = reservationService;
             _dbContext = databaseContext;
         }
