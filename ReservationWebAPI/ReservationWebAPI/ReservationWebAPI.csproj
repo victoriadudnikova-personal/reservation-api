@@ -11,10 +11,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Infrastructure\BackgroundServices\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\DbConnection\DbConnection.csproj" />
   </ItemGroup>
 
