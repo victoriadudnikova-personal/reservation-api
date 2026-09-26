@@ -7,7 +7,7 @@ using ReservationWebAPI.Application.Services;
 namespace ReservationWebAPI.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("[controller]/[action]")]
     public class ReservationController : ControllerBase
     {
         private ReservationService _reservationService;
@@ -19,19 +19,19 @@ namespace ReservationWebAPI.Controllers
             _dbContext = databaseContext;
         }
 
-        [HttpGet(Name = "Get")]
+        [HttpGet]
         public IEnumerable<Reservation> Get()
         {
             return _reservationService.Get(_dbContext);
         }
 
-        [HttpGet(Name = "Confirm")]
+        [HttpGet]
         public OperationResponse Confirm([FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey, Guid id)
         {
             return _reservationService.Confirm(id, idempotencyKey, _dbContext);
         }
 
-        [HttpGet(Name = "Cancel")]
+        [HttpGet]
         public OperationResponse Cancel([FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey, Guid id)
         {
             return _reservationService.Cancel(id, idempotencyKey, _dbContext);

@@ -19,7 +19,7 @@ namespace ReservationWebAPI.Application.Services
         }
         public IEnumerable<Reservation> Get(DatabaseContext dbContext)
         {
-            return dbContext.Reservations.AsNoTracking().AsQueryable();
+            return dbContext.Reservations.AsNoTracking().OrderBy(r => r.StartsAtUtc).AsQueryable();
         }
 
         public OperationResponse Confirm(Guid id, Guid idempotencyKey, DatabaseContext dbContext)
@@ -73,7 +73,7 @@ namespace ReservationWebAPI.Application.Services
                 return operationResponse;
             }
 
-            return UpdateReservationAndCreateIdempotencyRecord(id, Reservation.ReservationStatus.Activated, idempotencyKey, requestHash!, dbContext);
+            return UpdateReservationAndCreateIdempotencyRecord(id, newStatus, idempotencyKey, requestHash!, dbContext);
         }
 
         private OperationResponse UpdateReservationAndCreateIdempotencyRecord(Guid id, Reservation.ReservationStatus newStatus, Guid idempotencyKey, string requestHash, DatabaseContext dbContext)
@@ -98,7 +98,8 @@ namespace ReservationWebAPI.Application.Services
                 ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours),
                 ReservationId = id,
                 ResponseBody = $"Reservation is successfully {responseMessage}.",
-                ResponseStatusCode = StatusCodes.Status200OK
+                ResponseStatusCode = StatusCodes.Status200OK,
+                Operation = newStatus == Reservation.ReservationStatus.Activated ? IdempotencyRecord.OperationTypeEnum.Confirm : IdempotencyRecord.OperationTypeEnum.Cancel
             };
             dbContext.IdempotencyRecords.Add(idempotencyRecord);
 
@@ -107,6 +108,7 @@ namespace ReservationWebAPI.Application.Services
             return new OperationResponse
             {
                 ResponseMessage = idempotencyRecord.ResponseBody,
+                ReservationId = id,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -114,7 +116,11 @@ namespace ReservationWebAPI.Application.Services
         public IQueryable<Reservation> GetAllActiveReservations(DatabaseContext dbContext, DateTime startsAt, DateTime endsAt, Guid? id = null)
         {
 
-            var activeReservations = dbContext.Reservations.AsNoTracking().Where(r => (r.Status == Reservation.ReservationStatus.Activated || r.Status == Reservation.ReservationStatus.WaitingConfirmation) && ((startsAt < r.StartsAtUtc && endsAt <= r.StartsAtUtc) || (startsAt >= r.EndsAtUtc && endsAt > r.EndsAtUtc)) && (id == null || r.MeetingRoomId == id));
+            var activeReservations = dbContext.Reservations.AsNoTracking()
+                .Where(r => (r.Status == Reservation.ReservationStatus.Activated ||
+                             r.Status == Reservation.ReservationStatus.WaitingConfirmation) &&
+                            startsAt < r.EndsAtUtc && r.StartsAtUtc < endsAt &&
+                            (id == null || r.MeetingRoomId == id));
             return activeReservations.AsQueryable();
         }
 
@@ -124,7 +130,7 @@ namespace ReservationWebAPI.Application.Services
             {
                 Id = Guid.NewGuid(),
                 MeetingRoomId = request.MeetingRoomId,
-                StartsAtUtc = request.StartAtUtc,
+                StartsAtUtc = request.StartAt.UtcDateTime,
                 EndsAtUtc = endsAt,
                 Status = Reservation.ReservationStatus.WaitingConfirmation
             };
@@ -139,6 +145,7 @@ namespace ReservationWebAPI.Application.Services
             return new OperationResponse()
             {
                 ResponseMessage = idempotencyRecord.ResponseBody,
+                ReservationId = newReservation.Id,
                 StatusCode = idempotencyRecord.ResponseStatusCode
             };
         }

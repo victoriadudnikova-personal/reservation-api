@@ -7,7 +7,7 @@ using ReservationWebAPI.Application.Services;
 namespace ReservationWebAPI.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("[controller]/[action]")]
     public class MeetingRoomController : ControllerBase
     {
         private MeetingRoomService _meetingRoomService;
@@ -19,25 +19,26 @@ namespace ReservationWebAPI.Controllers
             _dbContext = dbContext;
         }
 
-        [HttpGet(Name = "GetAvailable")]
-        public IEnumerable<MeetingRoom> GetAvailable(int reservationInMinutes, DateTime? startsAt)
+        [HttpGet]
+        public IEnumerable<MeetingRoom> GetAvailable(int reservationInMinutes, DateTimeOffset? startsAt)
         {
-            return _meetingRoomService.GetAvailable(_dbContext, reservationInMinutes, startsAt);
+            var startsAtUtc = startsAt?.UtcDateTime ?? DateTime.UtcNow;
+            return _meetingRoomService.GetAvailable(_dbContext, reservationInMinutes, startsAtUtc);
         }
 
-        [HttpPost(Name = "Book")]
-        public OperationResponse Book([FromHeader(Name ="Idempotency-Key")]Guid idempotencyKey, BookMeetingRoomRequest request)
+        [HttpPost]
+        public OperationResponse Book([FromHeader(Name ="Idempotency-Key")]Guid idempotencyKey, [FromBody]BookMeetingRoomRequest request)
         {
             return _meetingRoomService.Book(idempotencyKey, request, _dbContext);
         }
 
-        [HttpGet(Name = "GetReservations")]
-        public IEnumerable<Reservation> GetReservations(Guid id, DateTime? startsAt, DateTime? endsAt)
+        [HttpGet]
+        public IEnumerable<Reservation> GetReservations(Guid id, DateTimeOffset? startsAt, DateTimeOffset? endsAt)
         {
-            return _meetingRoomService.GetReservations(id, _dbContext, startsAt, endsAt);
+            return _meetingRoomService.GetReservations(id, _dbContext, startsAt?.UtcDateTime, endsAt?.UtcDateTime);
         }
 
-        [HttpGet(Name = "Get")]
+        [HttpGet]
         public IEnumerable<MeetingRoom> Get()
         {
             return _meetingRoomService.Get(_dbContext);

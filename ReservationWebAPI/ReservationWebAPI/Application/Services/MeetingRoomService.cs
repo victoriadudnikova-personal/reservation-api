@@ -18,7 +18,7 @@ namespace ReservationWebAPI.Application.Services
         }
         public IEnumerable<MeetingRoom> Get(DatabaseContext dbContext)
         {
-            return dbContext.MeetingRooms.AsQueryable();
+            return dbContext.MeetingRooms.OrderBy(mr => mr.Name).AsQueryable();
         }
         public IEnumerable<Reservation> GetReservations(Guid id, DatabaseContext dbContext, DateTime? startsAt, DateTime? endsAt)
         {
@@ -32,12 +32,12 @@ namespace ReservationWebAPI.Application.Services
 
             return activeReservations;
         }
-        public IEnumerable<MeetingRoom> GetAvailable(DatabaseContext dbContext, int reservationInMinutes, DateTime? startsAt)
+        public IEnumerable<MeetingRoom> GetAvailable(DatabaseContext dbContext, int reservationInMinutes, DateTime startsAt)
         {
-            startsAt = startsAt ?? DateTime.UtcNow;
-            var endsAt = startsAt.Value.AddMinutes(reservationInMinutes);
-            var activeReservations = _reservationService.GetAllActiveReservations(dbContext, startsAt.Value, endsAt);
-            return dbContext.MeetingRooms.AsNoTracking().Include(mr => mr.AllReservations.Except(activeReservations)).AsQueryable();
+            var endsAt = startsAt.AddMinutes(reservationInMinutes);
+            var activeReservations = _reservationService.GetAllActiveReservations(dbContext, startsAt, endsAt);
+            return dbContext.MeetingRooms.AsNoTracking()
+                .Where(mr => !activeReservations.Any(r => r.MeetingRoomId == mr.Id));
         }
 
         public OperationResponse Book(Guid idempotencyKey, BookMeetingRoomRequest request, DatabaseContext dbContext)
@@ -68,7 +68,8 @@ namespace ReservationWebAPI.Application.Services
                     Key = idempotencyKey,
                     RequestHash = requestHash!,
                     CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours)
+                    ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours),
+                    Operation = IdempotencyRecord.OperationTypeEnum.Book
                 };
 
                 operationResponse = CheckIfMeetingRoomExists(dbContext, request, newIdempotencyRecord);
@@ -77,7 +78,7 @@ namespace ReservationWebAPI.Application.Services
                     return operationResponse;
                 }
 
-                var endsAt = request.StartAtUtc.AddMinutes(request.ReservationDurationInMinutes);
+                var endsAt = request.StartAt.UtcDateTime.AddMinutes(request.ReservationDurationInMinutes);
 
                 operationResponse = CheckIfMeetingRoomAvailable(dbContext, request, newIdempotencyRecord, endsAt);
                 if (operationResponse != null)
@@ -119,7 +120,7 @@ namespace ReservationWebAPI.Application.Services
 
         private OperationResponse? CheckIfMeetingRoomAvailable(DatabaseContext dbContext, BookMeetingRoomRequest request, IdempotencyRecord idempotencyRecord, DateTime endsAt)
         {
-            var activeReservations = _reservationService.GetAllActiveReservations(dbContext, request.StartAtUtc, endsAt, request.MeetingRoomId);
+            var activeReservations = _reservationService.GetAllActiveReservations(dbContext, request.StartAt.UtcDateTime, endsAt, request.MeetingRoomId);
             if (activeReservations.Any())
             {
                 idempotencyRecord.ResponseBody = $"Meeting room with id '{request.MeetingRoomId}' cannot be booked because it's alerady reserved at this time frame.";

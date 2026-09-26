@@ -47,13 +47,19 @@ namespace ReservationWebAPI.Infrastructure.BackgroundServices
         }
         private async Task CancelObsoleteReservations(DateTime expirationTime, DatabaseContext dbContext, CancellationToken cancellationToken)
         {
-            var obsoleteReservations = dbContext.Reservations.Include(r => r.IdempotencyRecords.Where(ir => ir.Operation == DbConnection.Domain.Entities.IdempotencyRecord.OperationTypeEnum.Book && ir.CreatedAt.AddMinutes(_reservationExpirationInMinutes) > expirationTime)).Where(r => r.Status == DbConnection.Domain.Entities.Reservation.ReservationStatus.WaitingConfirmation);
+            var expiredIdempotencyRecords = dbContext.IdempotencyRecords.Where(ir => ir.Operation == DbConnection.Domain.Entities.IdempotencyRecord.OperationTypeEnum.Book && ir.CreatedAt.AddMinutes(_reservationExpirationInMinutes) <= expirationTime);
+            var obsoleteReservations = dbContext.Reservations.Include(r => r.IdempotencyRecords).Where(r => r.Status == DbConnection.Domain.Entities.Reservation.ReservationStatus.WaitingConfirmation && expiredIdempotencyRecords.Any(ir => ir.ReservationId == r.Id));
+            
             await obsoleteReservations.ForEachAsync(r => 
             {
+                
                 r.Status = DbConnection.Domain.Entities.Reservation.ReservationStatus.Deactivated;
             }, cancellationToken);
-            dbContext.UpdateRange(obsoleteReservations);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            if (obsoleteReservations.Any())
+            {
+                dbContext.UpdateRange(obsoleteReservations);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
         }
     }
 }

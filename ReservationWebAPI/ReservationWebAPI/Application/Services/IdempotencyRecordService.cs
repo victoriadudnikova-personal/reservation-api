@@ -1,4 +1,5 @@
-﻿using DbConnection;
+﻿using Azure.Core;
+using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
@@ -9,7 +10,7 @@ namespace ReservationWebAPI.Application.Services
     {
         public IEnumerable<IdempotencyRecord> Get(DatabaseContext dbContext)
         {
-            return dbContext.IdempotencyRecords.AsQueryable();
+            return dbContext.IdempotencyRecords.AsNoTracking().OrderByDescending(ir => ir.CreatedAt).AsQueryable();
         }
         public OperationResponse? CheckIfRequestingSameOperation(DatabaseContext dbContext, Guid idempotencyKey, OperationRequest request)
         {
@@ -31,19 +32,42 @@ namespace ReservationWebAPI.Application.Services
                     return new OperationResponse()
                     {
                         ResponseMessage = "Cannot process request due to malformed request in the idempotency record.",
+                        ReservationId = existingIdempotencyRecord.ReservationId,
                         StatusCode = StatusCodes.Status400BadRequest
                     };
                 }
-                if (savedBodyRequest.Equals(request))
+
+                var isSameBody = CheckIfRequestsHaveSameBody(savedBodyRequest, request);
+
+                if (existingIdempotencyRecord.Operation == request.OperationType && isSameBody)
                 {
                     return new OperationResponse()
                     {
                         ResponseMessage = existingIdempotencyRecord.ResponseBody,
+                        ReservationId = existingIdempotencyRecord.ReservationId,
                         StatusCode = existingIdempotencyRecord.ResponseStatusCode
                     };
                 }
             }
             return null;
+        }
+
+        private bool CheckIfRequestsHaveSameBody(object savedBodyRequest, OperationRequest request)
+        {
+            var isSameBody = savedBodyRequest switch
+            {
+                BookMeetingRoomRequest saved =>
+                    BookMeetingRoomRequest.Deserialize(request.SerializedOperation) is { } incoming &&
+                    saved.MeetingRoomId == incoming.MeetingRoomId &&
+                    saved.ReservationDurationInMinutes == incoming.ReservationDurationInMinutes &&
+                    saved.StartAt == incoming.StartAt,
+                UpdateReservationStatusRequest saved =>
+                    UpdateReservationStatusRequest.Deserialize(request.SerializedOperation) is { } incoming &&
+                    saved.ReservationId == incoming.ReservationId &&
+                    saved.Status == incoming.Status,
+                _ => false
+            };
+            return isSameBody;
         }
     }
 }

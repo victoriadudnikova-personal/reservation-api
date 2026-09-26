@@ -6,7 +6,7 @@ namespace ReservationWebAPI.Application.DTOs
     {
         public Guid MeetingRoomId { get; set; }
         public int ReservationDurationInMinutes {  get; set; }
-        public DateTime StartAtUtc { get; set; }
+        public DateTimeOffset StartAt { get; set; }
 
         public static string? Serialize(BookMeetingRoomRequest objectToSerialize)
         {

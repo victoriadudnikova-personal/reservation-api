@@ -6,7 +6,7 @@ using ReservationWebAPI.Application.Services;
 namespace ReservationWebAPI.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("[controller]/[action]")]
     public class IdempotencyRecordController : ControllerBase
     {
         private IdempotencyRecordService _idempotenceRecordService;
@@ -18,12 +18,12 @@ namespace ReservationWebAPI.Controllers
             _idempotenceRecordService = idempotencyRecordService;
         }
 
-        [HttpGet(Name = "Get")]
+        [HttpGet]
         public IEnumerable<IdempotencyRecord> Get()
         {
             return _idempotenceRecordService.Get(_databaseContext);
         }
-        [HttpGet(Name = "GenerateKey")]
+        [HttpGet]
         public Guid GenerateKey()
         {
             return Guid.NewGuid();
