@@ -57,7 +57,7 @@ namespace DbConnection
 
                 entity.HasIndex(e => new { e.Id, e.StartsAtUtc, e.EndsAtUtc, e.MeetingRoomId, e.Status }).HasFilter(null);
 
-                entity.HasOne(e => e.MeetingRoom).WithMany(mr => mr.AllReservations);
+                entity.HasOne(e => e.MeetingRoom).WithMany(mr => mr.AllReservations).HasForeignKey(e => e.MeetingRoomId);
             });
         }
         private void CreateIdempotencyRecordsEntityDefinitions(ModelBuilder modelBuilder)
@@ -68,7 +68,7 @@ namespace DbConnection
 
                 entity.Property(e => e.Id).HasMaxLength(36).IsRequired();
                 entity.Property(e => e.Key).HasMaxLength(36).IsRequired();
-                entity.Property(e => e.Operation).HasMaxLength(1).IsRequired(false);
+                entity.Property(e => e.Operation).HasMaxLength(1).IsRequired();
                 entity.Property(e => e.RequestHash).IsRequired();
                 entity.Property(e => e.ResponseBody).IsRequired();
                 entity.Property(e => e.ResponseStatusCode).HasMaxLength(3).IsRequired();

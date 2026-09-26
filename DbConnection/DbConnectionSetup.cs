@@ -73,7 +73,7 @@ namespace DbConnection
 
             var projectPath = GetPathToProjectForAssembly(assembly);
             DirectoryInfo projectDir = new(projectPath);
-            var solutionSourceDir = projectDir.Parent;
+            var solutionSourceDir = projectDir.Parent?.Parent;
 
             if (solutionSourceDir is null)
             {
