@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.19" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
   </ItemGroup>
 
   <ItemGroup>
