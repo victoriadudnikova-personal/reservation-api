@@ -6,4 +6,6 @@
 /ReservationWebAPI/.vs/*
 /DbConnection/obj/*
 /DbConnection/bin/*
+/UnitTests/bin/*
+/UnitTests/obj/*
 *.user
