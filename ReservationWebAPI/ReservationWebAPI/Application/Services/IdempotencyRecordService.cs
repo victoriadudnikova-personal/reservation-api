@@ -14,6 +14,15 @@ namespace ReservationWebAPI.Application.Services
         }
         public OperationResponse? CheckIfRequestingSameOperation(DatabaseContext dbContext, Guid idempotencyKey, OperationRequest request)
         {
+            if (idempotencyKey == Guid.Empty)
+            {
+                return new OperationResponse()
+                {
+                    ResponseMessage = "Idempotency key cannot by empty Guid.",
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+
             var existingIdempotencyRecord = dbContext.IdempotencyRecords.AsNoTracking().FirstOrDefault(idr => idr.Key == idempotencyKey);
             if (existingIdempotencyRecord != null)
             {
@@ -46,6 +55,15 @@ namespace ReservationWebAPI.Application.Services
                         ResponseMessage = existingIdempotencyRecord.ResponseBody,
                         ReservationId = existingIdempotencyRecord.ReservationId,
                         StatusCode = existingIdempotencyRecord.ResponseStatusCode
+                    };
+                }
+                else if (existingIdempotencyRecord.Operation == request.OperationType && !isSameBody)
+                {
+                    return new OperationResponse()
+                    {
+                        ResponseMessage = "Conflict: idempotency keys are identical, but requests are different.",
+                        ReservationId = existingIdempotencyRecord.ReservationId,
+                        StatusCode = StatusCodes.Status400BadRequest
                     };
                 }
             }

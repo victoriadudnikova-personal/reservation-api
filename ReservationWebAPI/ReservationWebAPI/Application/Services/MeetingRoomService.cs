@@ -1,4 +1,5 @@
-﻿using DbConnection;
+﻿using Azure.Core;
+using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
@@ -28,12 +29,16 @@ namespace ReservationWebAPI.Application.Services
                 throw new Exception($"There is not meeting room with id '{id}' in database.");
             }
 
-            var activeReservations = dbContext.Reservations.AsNoTracking().Where(r => r.Id == id && (startsAt.HasValue && r.StartsAtUtc >= startsAt || startsAt == null) && (endsAt.HasValue && r.EndsAtUtc <= endsAt || endsAt == null));
+            var activeReservations = dbContext.Reservations.AsNoTracking().Where(r => r.MeetingRoomId == id && (startsAt.HasValue && r.StartsAtUtc >= startsAt || startsAt == null) && (endsAt.HasValue && r.EndsAtUtc <= endsAt || endsAt == null));
 
             return activeReservations;
         }
         public IEnumerable<MeetingRoom> GetAvailable(DatabaseContext dbContext, int reservationInMinutes, DateTime startsAt)
         {
+            if (reservationInMinutes <= 0)
+            {
+                throw new ArgumentException("Reservation time should be a positive number that represents minutes.");
+            }
             var endsAt = startsAt.AddMinutes(reservationInMinutes);
             var activeReservations = _reservationService.GetAllActiveReservations(dbContext, startsAt, endsAt);
             return dbContext.MeetingRooms.AsNoTracking()
@@ -44,6 +49,24 @@ namespace ReservationWebAPI.Application.Services
         {
             try
             {
+                if (request.ReservationDurationInMinutes <= 0)
+                {
+                    return new OperationResponse()
+                    {
+                        ResponseMessage = "Reservation time should be a positive number that represents minutes.",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
+                if (request.StartAt.AddMilliseconds(3000) < DateTimeOffset.UtcNow)
+                {
+                    return new OperationResponse()
+                    {
+                        ResponseMessage = "Reservation start time cannot be in the past.",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
                 (var requestHash, var operationResponse) = request.CheckIfCanBeSerialized();
                 if (operationResponse != null)
                 {

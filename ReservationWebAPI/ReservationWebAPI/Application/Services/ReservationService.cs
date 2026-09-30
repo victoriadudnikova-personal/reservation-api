@@ -52,7 +52,7 @@ namespace ReservationWebAPI.Application.Services
             var request = new UpdateReservationStatusRequest()
             {
                 ReservationId = id,
-                Status = Reservation.ReservationStatus.Activated
+                Status = newStatus
             };
 
             (var requestHash, var operationResponse) = request.CheckIfCanBeSerialized();
@@ -84,6 +84,16 @@ namespace ReservationWebAPI.Application.Services
                 return new OperationResponse
                 {
                     ResponseMessage = $"Reservation with id '{id}' is not found in database.",
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+
+            if (newStatus == Reservation.ReservationStatus.Activated && reservation.Status != Reservation.ReservationStatus.WaitingConfirmation)
+            {
+                return new OperationResponse
+                {
+                    ResponseMessage = $"Reservation with id '{id}' does not have a waiting confirmation status.",
+                    ReservationId = reservation.Id,
                     StatusCode = StatusCodes.Status400BadRequest
                 };
             }
