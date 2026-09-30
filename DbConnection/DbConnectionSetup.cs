@@ -86,9 +86,7 @@ namespace DbConnection
 
         public static DirectoryInfo GetPathToInitialSeedDataFolder()
         {
-            var solutionDirectory = GetPathToSolutionSource();
-            var initialSeedDataFolder = Path.Combine(
-                $"{solutionDirectory}{Path.DirectorySeparatorChar}DbConnection{Path.DirectorySeparatorChar}InitialSeedData");
+            var initialSeedDataFolder = Path.Combine(AppContext.BaseDirectory, "InitialSeedData");
             if (!Directory.Exists(initialSeedDataFolder))
             {
                 throw new Exception(
