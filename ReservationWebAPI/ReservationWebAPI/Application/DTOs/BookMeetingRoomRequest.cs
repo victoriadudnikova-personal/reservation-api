@@ -17,18 +17,14 @@ namespace ReservationWebAPI.Application.DTOs
             return JsonHelper.DeserializeJsonToObject<BookMeetingRoomRequest>(objectToDeserialize);
         }
 
-        public (string?, OperationResponse?) CheckIfCanBeSerialized()
+        public string? CheckIfCanBeSerialized()
         {
             var requestHash = Serialize(this);
             if (string.IsNullOrEmpty(requestHash))
             {
-                return (null, new OperationResponse()
-                {
-                    ResponseMessage = "Failed to serialize request to save in the idempotency record.",
-                    StatusCode = StatusCodes.Status400BadRequest
-                });
+                throw new CustomException("Failed to serialize request to save in the idempotency record.", CustomException.ExceptionType.SerializationError);
             }
-            return (requestHash, null);
+            return requestHash;
         }
     }
 }

@@ -1,5 +1,4 @@
 using DbConnection;
-using DbConnection.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 using ReservationWebAPI.Application.Services;
 
@@ -19,9 +18,9 @@ namespace ReservationWebAPI.Controllers
         }
 
         [HttpGet]
-        public IEnumerable<IdempotencyRecord> Get()
+        public IActionResult Get()
         {
-            return _idempotenceRecordService.Get(_databaseContext);
+            return new OkObjectResult(_idempotenceRecordService.Get(_databaseContext));
         }
         [HttpGet]
         public IActionResult GenerateKey()

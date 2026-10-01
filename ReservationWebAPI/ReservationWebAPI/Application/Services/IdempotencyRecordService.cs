@@ -3,6 +3,7 @@ using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
+using ReservationWebAPI.Application.Helpers;
 
 namespace ReservationWebAPI.Application.Services
 {
@@ -16,11 +17,7 @@ namespace ReservationWebAPI.Application.Services
         {
             if (idempotencyKey == Guid.Empty)
             {
-                return new OperationResponse()
-                {
-                    ResponseMessage = "Idempotency key cannot by empty Guid.",
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
+                throw new CustomException("Idempotency key cannot by empty Guid.", CustomException.ExceptionType.InvalidArgument);
             }
 
             var existingIdempotencyRecord = dbContext.IdempotencyRecords.AsNoTracking().FirstOrDefault(idr => idr.Key == idempotencyKey);
@@ -38,12 +35,7 @@ namespace ReservationWebAPI.Application.Services
                 
                 if (savedBodyRequest == null)
                 {
-                    return new OperationResponse()
-                    {
-                        ResponseMessage = "Cannot process request due to malformed request in the idempotency record.",
-                        ReservationId = existingIdempotencyRecord.ReservationId,
-                        StatusCode = StatusCodes.Status400BadRequest
-                    };
+                    throw new CustomException("Cannot deserialize the request body from the idempotency record.", CustomException.ExceptionType.InvalidArgument);
                 }
 
                 var isSameBody = CheckIfRequestsHaveSameBody(savedBodyRequest, request);
@@ -59,12 +51,7 @@ namespace ReservationWebAPI.Application.Services
                 }
                 else if (existingIdempotencyRecord.Operation == request.OperationType && !isSameBody)
                 {
-                    return new OperationResponse()
-                    {
-                        ResponseMessage = "Conflict: idempotency keys are identical, but requests are different.",
-                        ReservationId = existingIdempotencyRecord.ReservationId,
-                        StatusCode = StatusCodes.Status400BadRequest
-                    };
+                    throw new CustomException("Conflict: idempotency keys are identical, but requests are different.", CustomException.ExceptionType.InvalidOperation);
                 }
             }
             return null;

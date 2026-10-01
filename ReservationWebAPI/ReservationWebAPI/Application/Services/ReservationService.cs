@@ -2,6 +2,7 @@
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
+using ReservationWebAPI.Application.Helpers;
 namespace ReservationWebAPI.Application.Services
 {
     public class ReservationService
@@ -19,32 +20,16 @@ namespace ReservationWebAPI.Application.Services
         }
         public IEnumerable<Reservation> Get(DatabaseContext dbContext)
         {
-            return dbContext.Reservations.AsNoTracking().OrderBy(r => r.StartsAtUtc).AsQueryable();
+            return dbContext.Reservations.AsNoTracking().OrderBy(r => r.StartsAtUtc);
         }
 
         public OperationResponse Confirm(Guid id, Guid idempotencyKey, DatabaseContext dbContext)
         {
-            try
-            {
-                return UpdateReservationStatus(id, Reservation.ReservationStatus.Activated, idempotencyKey, dbContext);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.InnerException?.Message ?? ex.Message, ex);
-                throw new Exception(ex.Message, ex);
-            }
+            return UpdateReservationStatus(id, Reservation.ReservationStatus.Activated, idempotencyKey, dbContext);
         }
         public OperationResponse Cancel(Guid id, Guid idempotencyKey, DatabaseContext dbContext)
         {
-            try
-            {
-                return UpdateReservationStatus(id, Reservation.ReservationStatus.Deactivated, idempotencyKey, dbContext);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.InnerException?.Message ?? ex.Message, ex);
-                throw new Exception(ex.Message, ex);
-            }
+            return UpdateReservationStatus(id, Reservation.ReservationStatus.Deactivated, idempotencyKey, dbContext);
         }
 
         private OperationResponse UpdateReservationStatus(Guid id, Reservation.ReservationStatus newStatus, Guid idempotencyKey, DatabaseContext dbContext)
@@ -55,24 +40,16 @@ namespace ReservationWebAPI.Application.Services
                 Status = newStatus
             };
 
-            (var requestHash, var operationResponse) = request.CheckIfCanBeSerialized();
-            if (operationResponse != null)
-            {
-                return operationResponse;
-            }
-
+            var requestHash = request.CheckIfCanBeSerialized();
+            
             var operationRequest = new OperationRequest()
             {
                 OperationType = IdempotencyRecord.OperationTypeEnum.Confirm,
                 SerializedOperation = requestHash!
             };
 
-            operationResponse = _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
-            if (operationResponse != null)
-            {
-                return operationResponse;
-            }
-
+            _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
+            
             return UpdateReservationAndCreateIdempotencyRecord(id, newStatus, idempotencyKey, requestHash!, dbContext);
         }
 
@@ -81,21 +58,12 @@ namespace ReservationWebAPI.Application.Services
             var reservation = dbContext.Reservations.FirstOrDefault(r => r.Id == id);
             if (reservation == null)
             {
-                return new OperationResponse
-                {
-                    ResponseMessage = $"Reservation with id '{id}' is not found in database.",
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
+                throw new CustomException($"Reservation with id '{id}' is not found in database.", CustomException.ExceptionType.ObjectNotFound);
             }
 
             if (newStatus == Reservation.ReservationStatus.Activated && reservation.Status != Reservation.ReservationStatus.WaitingConfirmation)
             {
-                return new OperationResponse
-                {
-                    ResponseMessage = $"Reservation with id '{id}' does not have a waiting confirmation status.",
-                    ReservationId = reservation.Id,
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
+                throw new CustomException($"Reservation with id '{id}' does not have a waiting confirmation status.", CustomException.ExceptionType.InvalidOperation);
             }
 
             var responseMessage = newStatus == Reservation.ReservationStatus.Activated ? "confirmed" : "canceled";
@@ -131,7 +99,7 @@ namespace ReservationWebAPI.Application.Services
                              r.Status == Reservation.ReservationStatus.WaitingConfirmation) &&
                             startsAt < r.EndsAtUtc && r.StartsAtUtc < endsAt &&
                             (id == null || r.MeetingRoomId == id));
-            return activeReservations.AsQueryable();
+            return activeReservations;
         }
 
         public OperationResponse CreateNewReservationWithIdempotencyRecord(DatabaseContext dbContext, BookMeetingRoomRequest request, IdempotencyRecord idempotencyRecord, DateTime endsAt)

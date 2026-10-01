@@ -1,8 +1,8 @@
-﻿using Azure.Core;
-using DbConnection;
+﻿using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
+using ReservationWebAPI.Application.Helpers;
 
 namespace ReservationWebAPI.Application.Services
 {
@@ -19,14 +19,14 @@ namespace ReservationWebAPI.Application.Services
         }
         public IEnumerable<MeetingRoom> Get(DatabaseContext dbContext)
         {
-            return dbContext.MeetingRooms.OrderBy(mr => mr.Name).AsQueryable();
+            return dbContext.MeetingRooms.OrderBy(mr => mr.Name);
         }
         public IEnumerable<Reservation> GetReservations(Guid id, DatabaseContext dbContext, DateTime? startsAt, DateTime? endsAt)
         {
             var meetingRoom = dbContext.MeetingRooms.AsNoTracking().FirstOrDefault(mr => mr.Id == id);
             if (meetingRoom == null)
             {
-                throw new Exception($"There is not meeting room with id '{id}' in database.");
+                throw new CustomException($"Meeting room with id '{id}' is not found in database.", CustomException.ExceptionType.ObjectNotFound);
             }
 
             var activeReservations = dbContext.Reservations.AsNoTracking().Where(r => r.MeetingRoomId == id && (startsAt.HasValue && r.StartsAtUtc >= startsAt || startsAt == null) && (endsAt.HasValue && r.EndsAtUtc <= endsAt || endsAt == null));
@@ -37,7 +37,7 @@ namespace ReservationWebAPI.Application.Services
         {
             if (reservationInMinutes <= 0)
             {
-                throw new ArgumentException("Reservation time should be a positive number that represents minutes.");
+                throw new CustomException("Reservation time should be a positive number that represents minutes.", CustomException.ExceptionType.InvalidArgument);
             }
             var endsAt = startsAt.AddMinutes(reservationInMinutes);
             var activeReservations = _reservationService.GetAllActiveReservations(dbContext, startsAt, endsAt);
@@ -47,116 +47,65 @@ namespace ReservationWebAPI.Application.Services
 
         public OperationResponse Book(Guid idempotencyKey, BookMeetingRoomRequest request, DatabaseContext dbContext)
         {
-            try
+            if (request.ReservationDurationInMinutes <= 0)
             {
-                if (request.ReservationDurationInMinutes <= 0)
-                {
-                    return new OperationResponse()
-                    {
-                        ResponseMessage = "Reservation time should be a positive number that represents minutes.",
-                        StatusCode = StatusCodes.Status400BadRequest
-                    };
-                }
-
-                if (request.StartAt.AddMilliseconds(3000) < DateTimeOffset.UtcNow)
-                {
-                    return new OperationResponse()
-                    {
-                        ResponseMessage = "Reservation start time cannot be in the past.",
-                        StatusCode = StatusCodes.Status400BadRequest
-                    };
-                }
-
-                (var requestHash, var operationResponse) = request.CheckIfCanBeSerialized();
-                if (operationResponse != null)
-                {
-                    return operationResponse;
-                }
-
-                var operationRequest = new OperationRequest()
-                {
-                    OperationType = IdempotencyRecord.OperationTypeEnum.Book,
-                    SerializedOperation = requestHash!
-                };
-
-                operationResponse = _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
-                if (operationResponse != null)
-                {
-                    return operationResponse;
-                }
-
-                var newIdempotencyRecord = new IdempotencyRecord()
-                {
-                    Id = Guid.NewGuid(),
-                    Key = idempotencyKey,
-                    RequestHash = requestHash!,
-                    CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours),
-                    Operation = IdempotencyRecord.OperationTypeEnum.Book
-                };
-
-                operationResponse = CheckIfMeetingRoomExists(dbContext, request, newIdempotencyRecord);
-                if (operationResponse != null)
-                {
-                    return operationResponse;
-                }
-
-                var endsAt = request.StartAt.UtcDateTime.AddMinutes(request.ReservationDurationInMinutes);
-
-                operationResponse = CheckIfMeetingRoomAvailable(dbContext, request, newIdempotencyRecord, endsAt);
-                if (operationResponse != null)
-                {
-                    return operationResponse;
-                }
-
-                return _reservationService.CreateNewReservationWithIdempotencyRecord(dbContext, request, newIdempotencyRecord, endsAt);
+                throw new CustomException("Reservation time should be a positive number that represents minutes.", CustomException.ExceptionType.InvalidArgument);
             }
-            catch (Exception ex)
+
+            if (request.StartAt.AddMilliseconds(3000) < DateTimeOffset.UtcNow)
             {
-                return new OperationResponse
-                {
-                    ResponseMessage = ex.InnerException?.Message ?? ex.Message,
-                    StatusCode = StatusCodes.Status400BadRequest
-                };    
+                throw new CustomException("Reservation start time cannot be in the past.", CustomException.ExceptionType.InvalidArgument);
             }
+
+            CheckIfMeetingRoomExists(dbContext, request);
+
+            var requestHash = request.CheckIfCanBeSerialized();
+            
+            var operationRequest = new OperationRequest()
+            {
+                OperationType = IdempotencyRecord.OperationTypeEnum.Book,
+                SerializedOperation = requestHash!
+            };
+
+            var operationResponse = _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
+            if (operationResponse != null)
+            {
+                return operationResponse;
+            }
+
+            var endsAt = request.StartAt.UtcDateTime.AddMinutes(request.ReservationDurationInMinutes);
+            CheckIfMeetingRoomAvailable(dbContext, request, endsAt);
+
+            var newIdempotencyRecord = new IdempotencyRecord()
+            {
+                Id = Guid.NewGuid(),
+                Key = idempotencyKey,
+                RequestHash = requestHash!,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddHours(_idempotencyRecordExpirationInHours),
+                Operation = IdempotencyRecord.OperationTypeEnum.Book
+            };
+
+            return _reservationService.CreateNewReservationWithIdempotencyRecord(dbContext, request, newIdempotencyRecord, endsAt);
         }
 
         
 
-        private OperationResponse? CheckIfMeetingRoomExists(DatabaseContext dbContext, BookMeetingRoomRequest request, IdempotencyRecord idempotencyRecord) 
+        private void CheckIfMeetingRoomExists(DatabaseContext dbContext, BookMeetingRoomRequest request) 
         {
             var meetingRoom = dbContext.MeetingRooms.AsNoTracking().FirstOrDefault(mr => mr.Id == request.MeetingRoomId);
             if (meetingRoom == null)
             {
-                idempotencyRecord.ResponseBody = $"There is not meeting room with id '{request.MeetingRoomId}' in database.";
-                idempotencyRecord.ResponseStatusCode = StatusCodes.Status400BadRequest;
-                dbContext.IdempotencyRecords.Add(idempotencyRecord);
-                dbContext.SaveChanges();
-                return new OperationResponse
-                {
-                    ResponseMessage = idempotencyRecord.ResponseBody,
-                    StatusCode = idempotencyRecord.ResponseStatusCode
-                };
+                throw new CustomException($"There is not meeting room with id '{request.MeetingRoomId}' in database.", CustomException.ExceptionType.ObjectNotFound);
             }
-            return null;
         }
-
-        private OperationResponse? CheckIfMeetingRoomAvailable(DatabaseContext dbContext, BookMeetingRoomRequest request, IdempotencyRecord idempotencyRecord, DateTime endsAt)
+        private void CheckIfMeetingRoomAvailable(DatabaseContext dbContext, BookMeetingRoomRequest request, DateTime endsAt)
         {
             var activeReservations = _reservationService.GetAllActiveReservations(dbContext, request.StartAt.UtcDateTime, endsAt, request.MeetingRoomId);
             if (activeReservations.Any())
             {
-                idempotencyRecord.ResponseBody = $"Meeting room with id '{request.MeetingRoomId}' cannot be booked because it's alerady reserved at this time frame.";
-                idempotencyRecord.ResponseStatusCode = StatusCodes.Status400BadRequest;
-                dbContext.IdempotencyRecords.Add(idempotencyRecord);
-                dbContext.SaveChanges();
-                return new OperationResponse
-                {
-                    ResponseMessage = idempotencyRecord.ResponseBody,
-                    StatusCode = idempotencyRecord.ResponseStatusCode
-                };
+                throw new CustomException($"Meeting room with id '{request.MeetingRoomId}' cannot be booked because it's already reserved at this time frame.", CustomException.ExceptionType.InvalidOperation);
             }
-            return null;
         }
     }
 }

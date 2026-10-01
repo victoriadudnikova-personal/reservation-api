@@ -1,7 +1,6 @@
 using DbConnection;
-using DbConnection.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
-using ReservationWebAPI.Application.DTOs;
+using ReservationWebAPI.Application.Helpers;
 using ReservationWebAPI.Application.Services;
 
 namespace ReservationWebAPI.Controllers
@@ -20,21 +19,57 @@ namespace ReservationWebAPI.Controllers
         }
 
         [HttpGet]
-        public IEnumerable<Reservation> Get()
+        public IActionResult Get()
         {
-            return _reservationService.Get(_dbContext);
+            try 
+            {
+                var reservations = _reservationService.Get(_dbContext);
+                return new OkObjectResult(reservations);
+            }
+            catch (CustomException ex)
+            {
+                return new BadRequestObjectResult(ex);
+            }
+            catch (Exception ex)
+            {
+                return new BadRequestObjectResult(ExceptionHelper.FromException(ex));
+            }
         }
 
         [HttpGet]
-        public OperationResponse Confirm([FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey, Guid id)
+        public IActionResult Confirm([FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey, Guid id)
         {
-            return _reservationService.Confirm(id, idempotencyKey, _dbContext);
+            try
+            {
+                var result = _reservationService.Confirm(id, idempotencyKey, _dbContext);
+                return new OkObjectResult(result);
+            }
+            catch (CustomException ex)
+            {
+                return new BadRequestObjectResult(ex);
+            }
+            catch (Exception ex)
+            {
+                return new BadRequestObjectResult(ExceptionHelper.FromException(ex));
+            }
         }
 
         [HttpGet]
-        public OperationResponse Cancel([FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey, Guid id)
+        public IActionResult Cancel([FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey, Guid id)
         {
-            return _reservationService.Cancel(id, idempotencyKey, _dbContext);
+            try
+            {
+                var result = _reservationService.Cancel(id, idempotencyKey, _dbContext);
+                return new OkObjectResult(result);
+            }
+            catch (CustomException ex)
+            {
+                return new BadRequestObjectResult(ex);
+            }
+            catch (Exception ex)
+            {
+                return new BadRequestObjectResult(ExceptionHelper.FromException(ex));
+            }
         }
     }
 }
