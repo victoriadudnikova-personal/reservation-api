@@ -64,9 +64,8 @@ namespace DbConnection
         {
             modelBuilder.Entity<IdempotencyRecord>(entity =>
             {
-                entity.HasKey(e => e.Id);
+                entity.HasKey(e => e.Key);
 
-                entity.Property(e => e.Id).HasMaxLength(36).IsRequired();
                 entity.Property(e => e.Key).HasMaxLength(36).IsRequired();
                 entity.Property(e => e.Operation).HasMaxLength(1).IsRequired();
                 entity.Property(e => e.RequestHash).IsRequired();
@@ -75,7 +74,7 @@ namespace DbConnection
                 entity.Property(e => e.CreatedAt).IsRequired();
                 entity.Property(e => e.ExpiresAt).IsRequired();
 
-                entity.HasIndex(e => new { e.Id, e.Key, e.Operation, e.ReservationId, e.RequestHash, e.ResponseBody, e.ResponseStatusCode, e.ExpiresAt, e.CreatedAt }).HasFilter(null);
+                entity.HasIndex(e => new { e.Key, e.Operation, e.ReservationId, e.RequestHash, e.ResponseBody, e.ResponseStatusCode, e.ExpiresAt, e.CreatedAt }).HasFilter(null);
 
                 entity.HasOne(e => e.Reservation).WithMany(mr => mr.IdempotencyRecords);
             });

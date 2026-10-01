@@ -78,7 +78,6 @@ namespace ReservationWebAPI.Application.Services
 
             var newIdempotencyRecord = new IdempotencyRecord()
             {
-                Id = Guid.NewGuid(),
                 Key = idempotencyKey,
                 RequestHash = requestHash!,
                 CreatedAt = DateTime.UtcNow,

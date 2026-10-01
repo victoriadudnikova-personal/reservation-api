@@ -9,7 +9,6 @@
             Confirm = 2,
             Cancel = 3
         }
-        public Guid Id { get; set; }
         public Guid Key { get; set; }
         public OperationTypeEnum Operation { get; set; } = OperationTypeEnum.NotDefined;
         public string RequestHash { get; set; } = null!;

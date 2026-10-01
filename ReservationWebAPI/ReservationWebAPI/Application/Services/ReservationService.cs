@@ -69,7 +69,6 @@ namespace ReservationWebAPI.Application.Services
             var responseMessage = newStatus == Reservation.ReservationStatus.Activated ? "confirmed" : "canceled";
             var idempotencyRecord = new IdempotencyRecord()
             {
-                Id = Guid.NewGuid(),
                 Key = idempotencyKey,
                 RequestHash = requestHash,
                 CreatedAt = DateTime.UtcNow,
