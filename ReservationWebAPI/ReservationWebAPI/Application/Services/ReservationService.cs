@@ -1,4 +1,4 @@
-﻿using DbConnection;
+using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
@@ -34,6 +34,11 @@ namespace ReservationWebAPI.Application.Services
 
         private OperationResponse UpdateReservationStatus(Guid id, Reservation.ReservationStatus newStatus, Guid idempotencyKey, DatabaseContext dbContext)
         {
+            return TransactionRetry.Execute(dbContext, attempt => UpdateReservationStatusCore(id, newStatus, idempotencyKey, attempt));
+        }
+
+        private OperationResponse UpdateReservationStatusCore(Guid id, Reservation.ReservationStatus newStatus, Guid idempotencyKey, DatabaseContext dbContext)
+        {
             var request = new UpdateReservationStatusRequest()
             {
                 ReservationId = id,
@@ -44,11 +49,14 @@ namespace ReservationWebAPI.Application.Services
             
             var operationRequest = new OperationRequest()
             {
-                OperationType = IdempotencyRecord.OperationTypeEnum.Confirm,
+                OperationType = newStatus == Reservation.ReservationStatus.Activated ? IdempotencyRecord.OperationTypeEnum.Confirm : IdempotencyRecord.OperationTypeEnum.Cancel,
                 SerializedOperation = requestHash!
             };
 
-            _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
+            var existingResponse = _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
+            if (existingResponse != null) return existingResponse;
+
+            _idempotencyRecordService.CheckIfReusingIdempotencyKey(idempotencyKey, dbContext);
             
             return UpdateReservationAndCreateIdempotencyRecord(id, newStatus, idempotencyKey, requestHash!, dbContext);
         }

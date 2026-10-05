@@ -1,4 +1,4 @@
-﻿using DbConnection;
+using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using ReservationWebAPI.Application.DTOs;
@@ -52,10 +52,12 @@ namespace ReservationWebAPI.Application.Services
                 throw new CustomException("Reservation time should be a positive number that represents minutes.", CustomException.ExceptionType.InvalidArgument);
             }
 
-            if (request.StartAt.AddMilliseconds(3000) < DateTimeOffset.UtcNow)
-            {
-                throw new CustomException("Reservation start time cannot be in the past.", CustomException.ExceptionType.InvalidArgument);
-            }
+
+            return TransactionRetry.Execute(dbContext, attempt => BookCore(idempotencyKey, request, attempt));
+        }
+
+        private OperationResponse BookCore(Guid idempotencyKey, BookMeetingRoomRequest request, DatabaseContext dbContext)
+        {
 
             CheckIfMeetingRoomExists(dbContext, request);
 
@@ -67,14 +69,20 @@ namespace ReservationWebAPI.Application.Services
                 SerializedOperation = requestHash!
             };
 
-            var operationResponse = _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
-            if (operationResponse != null)
+            var existingOperationResponse = _idempotencyRecordService.CheckIfRequestingSameOperation(dbContext, idempotencyKey, operationRequest);
+            if (existingOperationResponse != null)
             {
-                return operationResponse;
+                return existingOperationResponse;
             }
 
+            if (request.StartAt.AddMilliseconds(3000) < DateTimeOffset.UtcNow)
+            {
+                throw new CustomException("Reservation start time cannot be in the past.", CustomException.ExceptionType.InvalidArgument);
+            }
             var endsAt = request.StartAt.UtcDateTime.AddMinutes(request.ReservationDurationInMinutes);
             CheckIfMeetingRoomAvailable(dbContext, request, endsAt);
+
+            _idempotencyRecordService.CheckIfReusingIdempotencyKey(idempotencyKey, dbContext);
 
             var newIdempotencyRecord = new IdempotencyRecord()
             {
@@ -85,10 +93,9 @@ namespace ReservationWebAPI.Application.Services
                 Operation = IdempotencyRecord.OperationTypeEnum.Book
             };
 
-            return _reservationService.CreateNewReservationWithIdempotencyRecord(dbContext, request, newIdempotencyRecord, endsAt);
+            var operationResponse = _reservationService.CreateNewReservationWithIdempotencyRecord(dbContext, request, newIdempotencyRecord, endsAt);
+            return operationResponse;
         }
-
-        
 
         private void CheckIfMeetingRoomExists(DatabaseContext dbContext, BookMeetingRoomRequest request) 
         {

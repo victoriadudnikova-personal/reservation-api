@@ -1,4 +1,4 @@
-﻿using DbConnection.Domain.Entities;
+using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Diagnostics.Metrics;
@@ -10,8 +10,11 @@ namespace DbConnection
         public DbSet<MeetingRoom> MeetingRooms => this.Set<MeetingRoom>();
         public DbSet<Reservation> Reservations => this.Set<Reservation>();
         public DbSet<IdempotencyRecord> IdempotencyRecords => this.Set<IdempotencyRecord>();
+        private readonly DbContextOptions<DatabaseContext> _options;
+        public DatabaseContext CreateRetryContext() => new DatabaseContext(_options);
         public DatabaseContext(DbContextOptions<DatabaseContext> options) : base(options)
         {
+            _options = options;
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -55,7 +58,7 @@ namespace DbConnection
                 entity.Property(e => e.EndsAtUtc).IsRequired();
                 entity.Property(e => e.MeetingRoomId).HasMaxLength(36).IsRequired();
 
-                entity.HasIndex(e => new { e.Id, e.StartsAtUtc, e.EndsAtUtc, e.MeetingRoomId, e.Status }).HasFilter(null);
+                entity.HasIndex(e => new { e.MeetingRoomId, e.StartsAtUtc });
 
                 entity.HasOne(e => e.MeetingRoom).WithMany(mr => mr.AllReservations).HasForeignKey(e => e.MeetingRoomId);
             });

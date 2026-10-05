@@ -1,4 +1,4 @@
-﻿using Azure.Core;
+using Azure.Core;
 using DbConnection;
 using DbConnection.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +23,9 @@ namespace ReservationWebAPI.Application.Services
             var existingIdempotencyRecord = dbContext.IdempotencyRecords.AsNoTracking().FirstOrDefault(idr => idr.Key == idempotencyKey);
             if (existingIdempotencyRecord != null)
             {
+                if (existingIdempotencyRecord.Operation != request.OperationType)
+                    throw new CustomException("Conflict: idempotency key belongs to a different operation.", CustomException.ExceptionType.InvalidOperation);
+
                 object? savedBodyRequest = null;
                 if (request.OperationType == IdempotencyRecord.OperationTypeEnum.Book)
                 {
@@ -32,7 +35,7 @@ namespace ReservationWebAPI.Application.Services
                 {
                     savedBodyRequest = UpdateReservationStatusRequest.Deserialize(existingIdempotencyRecord.RequestHash);
                 }
-                
+
                 if (savedBodyRequest == null)
                 {
                     throw new CustomException("Cannot deserialize the request body from the idempotency record.", CustomException.ExceptionType.InvalidArgument);
@@ -73,6 +76,15 @@ namespace ReservationWebAPI.Application.Services
                 _ => false
             };
             return isSameBody;
+        }
+
+        public void CheckIfReusingIdempotencyKey(Guid idempotencyKey, DatabaseContext dbContext)
+        {
+            var existingIdempotencyRecord = dbContext.IdempotencyRecords.AsNoTracking().FirstOrDefault(idr => idr.Key == idempotencyKey);
+            if (existingIdempotencyRecord != null)
+            {
+                throw new CustomException("Conflict: idempotency keys are identical, but operations are different.", CustomException.ExceptionType.InvalidOperation);
+            }
         }
     }
 }

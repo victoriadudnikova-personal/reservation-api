@@ -1,4 +1,4 @@
-﻿using DbConnection;
+using DbConnection;
 using Microsoft.EntityFrameworkCore;
 
 namespace ReservationWebAPI.Infrastructure.BackgroundServices
@@ -50,16 +50,9 @@ namespace ReservationWebAPI.Infrastructure.BackgroundServices
             var expiredIdempotencyRecords = dbContext.IdempotencyRecords.Where(ir => ir.Operation == DbConnection.Domain.Entities.IdempotencyRecord.OperationTypeEnum.Book && ir.CreatedAt.AddMinutes(_reservationExpirationInMinutes) <= expirationTime);
             var obsoleteReservations = dbContext.Reservations.Include(r => r.IdempotencyRecords).Where(r => r.Status == DbConnection.Domain.Entities.Reservation.ReservationStatus.WaitingConfirmation && expiredIdempotencyRecords.Any(ir => ir.ReservationId == r.Id));
             
-            await obsoleteReservations.ForEachAsync(r => 
-            {
-                
-                r.Status = DbConnection.Domain.Entities.Reservation.ReservationStatus.Deactivated;
-            }, cancellationToken);
-            if (obsoleteReservations.Any())
-            {
-                dbContext.UpdateRange(obsoleteReservations);
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
+            // Keep the status predicate in the UPDATE so confirmation cannot be overwritten.
+            await obsoleteReservations.ExecuteUpdateAsync(setters => setters.SetProperty(r => r.Status, DbConnection.Domain.Entities.Reservation.ReservationStatus.Deactivated),
+                cancellationToken);
         }
     }
 }
