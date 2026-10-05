@@ -1,0 +1,81 @@
+@ReservationWebAPI_HostAddress = https://localhost:7000
+
+//IDEMPOTENCY RECORD
+//1. get all idempotency records
+GET {{ReservationWebAPI_HostAddress}}/IdempotencyRecord/Get
+Accept: application/json
+
+###
+
+//2. generate an idempotency key
+GET {{ReservationWebAPI_HostAddress}}/IdempotencyRecord/GenerateKey
+Accept: application/json
+
+###
+
+//MEETING ROOM
+//1. get all rooms
+GET {{ReservationWebAPI_HostAddress}}/MeetingRoom/Get
+Accept: application/json
+
+###
+
+//2. get available rooms when reservation start time is not set (i.e., starting from now)
+GET {{ReservationWebAPI_HostAddress}}/MeetingRoom/GetAvailable?reservationInMinutes=60
+Accept: application/json
+
+###
+
+//3. get available rooms when reservation start time is set in local time
+GET {{ReservationWebAPI_HostAddress}}/MeetingRoom/GetAvailable?reservationInMinutes=60&startsAt=2026-09-23T15:00:00+03:00
+Accept: application/json
+
+###
+
+//4. get meeting's room reservations (start time and end time are not set)
+GET {{ReservationWebAPI_HostAddress}}/MeetingRoom/GetReservations?id=847b786f-de7d-47eb-9f0e-843062e436ef
+Accept: application/json
+
+###
+
+//5. get meeting's room reservations (start time and/or end time are set)
+GET {{ReservationWebAPI_HostAddress}}/MeetingRoom/GetReservations?id=847b786f-de7d-47eb-9f0e-843062e436ef&startsAt=2026-09-23T15:00:00+03:00&endsAt=2026-09-23T17:00:00+03:00
+Accept: application/json
+
+###
+
+//6. Book a meeting room
+POST {{ReservationWebAPI_HostAddress}}/MeetingRoom/Book
+Accept: application/json
+Idempotency-Key: bb8f1f6d-df70-46c4-b961-5bb9035f4783
+Content-Type: application/json
+
+{
+  "MeetingRoomId": "312c5953-b9e5-471c-b7bf-fa1d6650f5b1",
+  "ReservationDurationInMinutes": 60,
+  "StartAt": "2026-09-25T15:30:00+03:00"
+}
+
+###
+
+//RESERVATION
+
+//1. get all reservations
+GET {{ReservationWebAPI_HostAddress}}/Reservation/Get
+Accept: application/json
+
+###
+
+//2. confirm reservation
+GET {{ReservationWebAPI_HostAddress}}/Reservation/Confirm?id=fe48cf53-cba0-4c33-a34d-63540b3805d2
+Accept: application/json
+Idempotency-Key: acd2af88-80a4-4243-a9f3-17c50aca6a6b
+
+###
+
+//3. cancel reservation
+GET {{ReservationWebAPI_HostAddress}}/Reservation/Cancel?id=47ed8374-5fec-44d2-b798-1e684b5db690
+Accept: application/json
+Idempotency-Key: 844f3ea1-70cb-4e73-ad8a-a730d4ee8d33
+
+###
