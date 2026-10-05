@@ -1,4 +1,4 @@
-﻿using DbConnection;
+using DbConnection;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -22,6 +22,7 @@ namespace UnitTests
         private ReservationService _reservationService;
         private MeetingRoomService _meetingRoomService;
         private IConfiguration _configuration;
+        private Guid _roomId;
 
         [OneTimeSetUp]
         public void InitializeDatabase()
@@ -36,7 +37,10 @@ namespace UnitTests
         public void Setup()
         {
             _db = DatabaseSetup.CreateContext();
-            _transaction = _db.Database.BeginTransaction();
+            _transaction = _db.Database.BeginTransaction(System.Data.IsolationLevel.Serializable);
+            _roomId = Guid.NewGuid();
+            _db.MeetingRooms.Add(new() { Id = _roomId, Name = "Reservation test" });
+            _db.SaveChanges();
             var configurationWrapper = new ConfigurationWrapper();
             _configuration = configurationWrapper.GetConfiguration();
             _idempotencyRecordService = new IdempotencyRecordService();
@@ -50,6 +54,9 @@ namespace UnitTests
             try
             {
                 _transaction?.Rollback();
+                _db.IdempotencyRecords.Where(x => x.Reservation!.MeetingRoomId == _roomId).ExecuteDelete();
+                _db.Reservations.Where(x => x.MeetingRoomId == _roomId).ExecuteDelete();
+                _db.MeetingRooms.Where(x => x.Id == _roomId).ExecuteDelete();
             }
             finally
             {
@@ -69,7 +76,7 @@ namespace UnitTests
             // create one reservation
             var bookingRequest = new BookMeetingRoomRequest()
             {
-                MeetingRoomId = TestData.MeetingRoomId,
+                MeetingRoomId = _roomId,
                 ReservationDurationInMinutes = reservationTimeInMinutes,
                 StartAt = startsAt,
             };
@@ -95,54 +102,12 @@ namespace UnitTests
             // create one reservation
             var bookingRequest = new BookMeetingRoomRequest()
             {
-                MeetingRoomId = TestData.MeetingRoomId,
+                MeetingRoomId = _roomId,
                 ReservationDurationInMinutes = reservationTimeInMinutes,
                 StartAt = startsAt,
             };
             Assert.Throws<CustomException>(() => _meetingRoomService.Book(idempotencyKey, bookingRequest, _db));
         }
-
-        //TODO: Move to http requests
-        //[Test]
-        //public void BookWithInvalidIdempotencyKey_RejectBooking()
-        //{
-        //    var reservationTimeInMinutes = 60;
-        //    var startsAt = DateTime.UtcNow;
-        //    var idempotencyKey = Guid.NewGuid();
-
-        //    // create one reservation
-        //    var bookingRequest = new BookMeetingRoomRequest()
-        //    {
-        //        MeetingRoomId = TestData.MeetingRoomId,
-        //        ReservationDurationInMinutes = reservationTimeInMinutes,
-        //        StartAt = startsAt,
-        //    };
-        //    var bookOperationResponse = _meetingRoomService.Book(idempotencyKey, bookingRequest, _db);
-        //    bookOperationResponse.Should().NotBeNull();
-        //    bookOperationResponse.ReservationId.Should().NotBeNull();
-        //    bookOperationResponse.ReservationId.Should().NotBe(Guid.Empty);
-        //    bookOperationResponse.StatusCode.Should().Be(201);
-        //    _createdReservations.Add(bookOperationResponse.ReservationId.Value);
-        //    _createdIdempotencyRecords.Add(idempotencyKey);
-
-        //    // create identical reservation
-        //    idempotencyKey = Guid.NewGuid();
-
-        //    var newBookingRequest = new BookMeetingRoomRequest()
-        //    {
-        //        MeetingRoomId = bookingRequest.MeetingRoomId,
-        //        ReservationDurationInMinutes = bookingRequest.ReservationDurationInMinutes,
-        //        StartAt = bookingRequest.StartAt,
-        //    };
-
-        //    var newBookOperationResponse = _meetingRoomService.Book(idempotencyKey, newBookingRequest, _db);
-        //    newBookOperationResponse.Should().NotBeNull();
-        //    newBookOperationResponse.ReservationId.Should().BeNull();
-        //    newBookOperationResponse.StatusCode.Should().Be(400);
-        //    _createdIdempotencyRecords.Add(idempotencyKey);
-
-        //    DeleteReservationAndRelatedIdempotencyRecords(_createdReservations, _createdIdempotencyRecords);
-        //}
 
         [Test]
         public void BookWithMissingIdempotencyKey_ThrowException()
@@ -154,7 +119,7 @@ namespace UnitTests
             // create one reservation
             var bookingRequest = new BookMeetingRoomRequest()
             {
-                MeetingRoomId = TestData.MeetingRoomId,
+                MeetingRoomId = _roomId,
                 ReservationDurationInMinutes = reservationTimeInMinutes,
                 StartAt = startsAt,
             };
