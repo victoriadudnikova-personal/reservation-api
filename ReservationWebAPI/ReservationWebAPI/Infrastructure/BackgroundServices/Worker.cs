@@ -21,15 +21,7 @@ namespace ReservationWebAPI.Infrastructure.BackgroundServices
             {
                 try
                 {
-                    await using (var scope = _serviceScopeFactory.CreateAsyncScope())
-                    {
-                        var dbContext =
-                            scope.ServiceProvider.GetRequiredService<DatabaseContext>();
-
-                        var nextExpirationTime = DateTime.UtcNow;
-                        await CancelObsoleteReservations(nextExpirationTime, dbContext, cancellationToken);
-                        await CleanIdempotencyRecords(nextExpirationTime, dbContext, cancellationToken);
-                    }
+                    await RunOnceAsync(DateTime.UtcNow, cancellationToken);
 
                     await Task.Delay(_loopTargetTimeInMs, cancellationToken);
                 }
@@ -39,6 +31,18 @@ namespace ReservationWebAPI.Infrastructure.BackgroundServices
                 }
             }
             
+        }
+
+        //Processes expired reservations and idempotency records once using a UTC timestamp
+        public async Task RunOnceAsync(DateTime now, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            await using var scope = _serviceScopeFactory.CreateAsyncScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+
+            // Reservations must be processed before their booking records are deleted.
+            await CancelObsoleteReservations(now, dbContext, token);
+            await CleanIdempotencyRecords(now, dbContext, token);
         }
 
         private async Task CleanIdempotencyRecords(DateTime expirationTime, DatabaseContext dbContext, CancellationToken cancellationToken)
