@@ -21,6 +21,10 @@
     <ProjectReference Include="..\ReservationWebAPI\ReservationWebAPI\ReservationWebAPI.csproj" />
   </ItemGroup>
 
+	<ItemGroup>
+		<None Update="appsettings.Tests.json" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
   <ItemGroup>
     <Using Include="NUnit.Framework" />
   </ItemGroup>

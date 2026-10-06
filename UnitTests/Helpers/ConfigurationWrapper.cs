@@ -6,13 +6,12 @@ namespace UnitTests.Helpers
     {
         public IConfiguration GetConfiguration()
         {
-            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ReservationWaitingConfirmationTimeInMinutes"] = "3",
-                ["IdempotencyRecordExpirationTimeInHours"] = "24"
-            })
+            IConfiguration Configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.Tests.json", optional: false)
+            .AddEnvironmentVariables()
             .Build();
-            return configuration;
+            return Configuration;
         }
     }
 }
