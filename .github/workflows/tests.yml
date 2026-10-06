@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Reservation API tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Generate temporary database credentials
+        shell: bash
+        run: |
+          password="Ci1!$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "MSSQL_SA_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "ConnectionStrings__ReservationTestDb=Server=127.0.0.1,1637;Database=ReservationDb_Tests;User Id=sa;Password=$password;Encrypt=True;TrustServerCertificate=True" >> "$GITHUB_ENV"
+
+      - name: Start SQL Server and wait for readiness
+        run: docker compose -f compose.dev.yaml up -d --wait --wait-timeout 180 db
+
+      # Test fixtures migrate their own isolated database before executing tests.
+      - name: Run all tests
+        run: dotnet test UnitTests/UnitTests.csproj --configuration Release --logger "trx;LogFileName=tests.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: Print database logs on failure
+        if: failure()
+        run: docker compose -f compose.dev.yaml logs --no-color db
+
+      - name: Stop temporary database
+        if: always()
+        run: docker compose -f compose.dev.yaml down --volumes
