@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
@@ -8,41 +9,18 @@ namespace DbConnection
 {
     public static class DbConnectionSetup
     {
-        private static readonly string DatabaseConnectionStringTemplate =
-            "Server=%SERVER%,%PORT%;database=%DATABASE%;uid=sa;pwd=Agh!8Ds?qL7r2e3u;encrypt=yes;TrustServerCertificate=True";
-
-        private static readonly int SQLServerPort = 1433;
-        private static readonly int SQLServerExternalPortForReservationDb = 203;
-        private static readonly string LocalDatabase = "ReservationDb";
-
-        private static readonly string DatabaseServerLocally = "127.0.0.1";
-
-        public static DatabaseContext CreateDbContext()
+        
+       
+        public static IServiceCollection SetupDatabaseConnectionInjection(this IServiceCollection services, IConfiguration configuration)
         {
-            var connectionString = GetDatabaseConnectionString();
-            var optionBuilder = new DbContextOptionsBuilder<DatabaseContext>()
-                .UseSqlServer(connectionString, options => options.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
-            return new DatabaseContext(optionBuilder.Options);
-        }
-
-        public static string? GetDatabaseConnectionString()
-        {
-            var usedPort = SQLServerPort;
-            usedPort += SQLServerExternalPortForReservationDb;
-
-            return DatabaseConnectionStringTemplate.Replace("%SERVER%", DatabaseServerLocally).Replace("%DATABASE%", LocalDatabase).Replace("%PORT%", usedPort.ToString());
-        }
-
-        public static IServiceCollection SetupDatabaseConnectionInjection(this IServiceCollection services)
-        {
-            services.AddDbContext<DatabaseContext>(options => { ConfigureOptionBuilder(options); });
+            services.AddDbContext<DatabaseContext>(options => { ConfigureOptionBuilder(options, configuration); });
             services.AddScoped<DbContext, DatabaseContext>();
             return services;
         }
 
-        private static DbContextOptionsBuilder<DatabaseContext> ConfigureOptionBuilder(DbContextOptionsBuilder options)
+        private static DbContextOptionsBuilder<DatabaseContext> ConfigureOptionBuilder(DbContextOptionsBuilder options, IConfiguration configuration)
         {
-            var connectionString = GetDatabaseConnectionString();
+            var connectionString = configuration.GetConnectionString("ReservationDb") ?? throw new InvalidOperationException("ConnectionStrings:ReservationDb must be configured.");
 
             options.UseSqlServer(connectionString
                     ,
