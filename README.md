@@ -56,3 +56,18 @@ The runner calls `start-dev.ps1 -SetupOnly`, reads the generated password, confi
 Use `run-tests.ps1 -Help` to display options, or `run-tests.ps1 -DatabaseTimeoutSeconds 300` to increase the database readiness timeout. The execution-policy command must run in the terminal first because PowerShell checks the policy before executing any script code.
 
 The NUnit suite covers reservations, invalid requests, concurrent bookings, seed data, and background cleanup. Tests automatically create and migrate a separate `ReservationDb_Tests` database. The API does not need to be running.
+
+## GitHub Actions and merge protection
+
+The `Tests` workflow runs all tests against a temporary SQL Server database on pull requests targeting `main`, pushes to `main`, and manual runs from the Actions tab. Test results are available as the `test-results` artifact. CI generates its own temporary credentials; no repository secrets are required.
+
+The workflow alone does not block merging. After pushing the workflow and letting the `Reservation API tests` check complete at least once, configure GitHub under **Settings → Branches → Add branch protection rule**:
+
+1. Set the branch name pattern to `main`.
+2. Enable **Require a pull request before merging**. For a solo project, leave required approving reviews disabled.
+3. Enable **Require status checks to pass before merging** and select **Reservation API tests** (GitHub Actions).
+4. Enable **Require branches to be up to date before merging**.
+5. Enable **Do not allow bypassing the above settings** so the rule also applies to administrators. Leave force pushes and deletions disabled.
+6. Save the rule.
+
+Use feature branches and pull requests for subsequent changes. These settings block merging when tests fail or are pending, and prevent direct pushes from bypassing the pull-request requirement. Branch protection is available for public repositories on GitHub Free; private repositories require a plan supporting protected branches. See [GitHub's branch-protection documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
