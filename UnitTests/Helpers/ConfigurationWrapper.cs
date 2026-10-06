@@ -8,7 +8,7 @@ namespace UnitTests.Helpers
         {
             IConfiguration Configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.Tests.json", optional: false)
+            .AddJsonFile("appSettings.Tests.json", optional: false)
             .AddEnvironmentVariables()
             .Build();
             return Configuration;
